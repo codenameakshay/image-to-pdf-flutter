@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import './theme_provider.dart';
 import 'dart:io';
 import 'dart:async';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 void main() {
   runApp(
@@ -24,19 +26,53 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   File _image;
+  File _tempImage;
+  final pdf = pw.Document();
 
   Future getImageCamera() async {
     var image = await ImagePicker.pickImage(source: ImageSource.camera);
     setState(() {
-      _image = image;
+      if (_image == null) {
+        _image = image;
+      } else {
+        _tempImage = _image;
+        _image = image;
+      }
     });
   }
 
   Future getImageGallery() async {
     var image = await ImagePicker.pickImage(source: ImageSource.gallery);
     setState(() {
-      _image = image;
+      if (_image == null) {
+        _image = image;
+      } else {
+        _tempImage = _image;
+        _image = image;
+      }
     });
+  }
+
+  void createPDF(File _image) {
+    final image = PdfImage.file(
+      pdf.document,
+      bytes: _image.readAsBytesSync(),
+    );
+    pdf.addPage(pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Center(
+            child: pw.Image(image),
+          ); // Center
+        })); // Page
+  }
+
+  void savePDF() async {
+    final output = await getExternalStorageDirectory();
+    // print(output[0]);
+    print("${output.path}/example.pdf");
+    final file = File("${output.path}/example.pdf");
+    await file.writeAsBytes(pdf.save());
   }
 
   @override
@@ -126,6 +162,25 @@ class _MyAppState extends State<MyApp> {
         ),
         appBar: AppBar(
           title: Text('Image Picker'),
+          actions: <Widget>[
+            _image == null
+                ? _tempImage == null
+                    ? Container()
+                    : IconButton(
+                        icon: Icon(Icons.arrow_forward),
+                        onPressed: () {
+                          createPDF(_tempImage);
+                          savePDF();
+                        },
+                      )
+                : IconButton(
+                    icon: Icon(Icons.arrow_forward),
+                    onPressed: () {
+                      createPDF(_image);
+                      savePDF();
+                    },
+                  )
+          ],
         ),
         body: Column(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -133,8 +188,12 @@ class _MyAppState extends State<MyApp> {
             Container(
               padding: EdgeInsets.all(8),
               child: _image == null
-                  ? Text('No Image Selected')
-                  : Image.file(_image),
+                  ? _tempImage == null
+                      ? SizedBox(
+                          height: 500,
+                          child: Center(child: Text('No Image Selected')))
+                      : SizedBox(height: 500, child: Image.file(_tempImage))
+                  : SizedBox(height: 500, child: Image.file(_image)),
             ),
             ScanButton(getImageCamera, getImageGallery),
           ],
